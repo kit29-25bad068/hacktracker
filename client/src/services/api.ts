@@ -18,6 +18,15 @@ const api = axios.create({
   },
 });
 
+export const formatImageUrl = (url?: string | null): string => {
+  if (!url) return '';
+  if (url.startsWith('http://') || url.startsWith('https://') || url.startsWith('data:') || url.startsWith('blob:')) {
+    return url;
+  }
+  const baseUrl = getBaseURL().replace(/\/api\/?$/, '');
+  return `${baseUrl}${url.startsWith('/') ? '' : '/'}${url}`;
+};
+
 // Interceptor to inject Bearer Token from localStorage
 api.interceptors.request.use(
   (config) => {

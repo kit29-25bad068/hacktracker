@@ -25,7 +25,7 @@ import {
   Check,
   Trash2,
 } from 'lucide-react';
-import api from '../../services/api';
+import api, { formatImageUrl } from '../../services/api';
 import { useAuth } from '../../context/AuthContext';
 import { useNotification } from '../../context/NotificationContext';
 import TrustScoreMeter from '../../components/TrustScoreMeter';
@@ -215,22 +215,9 @@ const ProfilePage: React.FC = () => {
       setBannerInputUrl(dataUrl);
 
       try {
-        // Try file upload via FormData first
-        const formData = new FormData();
-        formData.append('banner', file);
-
-        let finalUrl = dataUrl;
-        try {
-          const res = await api.post('/users/banner', formData, {
-            headers: { 'Content-Type': undefined },
-          });
-          if (res.data?.bannerUrl) {
-            finalUrl = res.data.bannerUrl;
-          }
-        } catch {
-          // Direct base64 Data URL fallback
-          await api.put('/users/profile', { bannerUrl: dataUrl });
-        }
+        // Save base64 dataUrl directly to user profile in database
+        const res = await api.put('/users/profile', { bannerUrl: dataUrl });
+        const finalUrl = res.data?.user?.bannerUrl || dataUrl;
 
         setProfileUser((prev: any) => ({ ...prev, bannerUrl: finalUrl }));
         if (currentUser && currentUser.id === profileUser.id && updateUser) {
@@ -312,7 +299,7 @@ const ProfilePage: React.FC = () => {
         <div className="h-48 sm:h-64 relative overflow-hidden bg-slate-900 border-b border-gray-200/10 group">
           {profileUser.bannerUrl ? (
             <img
-              src={profileUser.bannerUrl}
+              src={formatImageUrl(profileUser.bannerUrl)}
               alt={`${profileUser.name}'s cover`}
               className="w-full h-full object-cover object-center transition-all duration-700 group-hover:scale-105"
             />
@@ -365,7 +352,7 @@ const ProfilePage: React.FC = () => {
             {/* Avatar */}
             <div className="w-28 h-28 sm:w-36 sm:h-36 rounded-3xl bg-teal-600 text-white font-extrabold text-3xl flex items-center justify-center border-4 border-white dark:border-[#111827] shadow-2xl overflow-hidden flex-shrink-0 bg-gradient-to-tr from-teal-500 to-indigo-600">
               {profileUser.avatar ? (
-                <img src={profileUser.avatar} alt={profileUser.name} className="w-full h-full object-cover" />
+                <img src={formatImageUrl(profileUser.avatar)} alt={profileUser.name} className="w-full h-full object-cover" />
               ) : (
                 profileUser.name.charAt(0)
               )}
@@ -661,7 +648,7 @@ const ProfilePage: React.FC = () => {
               <div className="h-32 rounded-2xl overflow-hidden relative border border-gray-700 bg-slate-900">
                 {(bannerInputUrl.trim() || profileUser.bannerUrl) ? (
                   <img
-                    src={bannerInputUrl.trim() || profileUser.bannerUrl}
+                    src={formatImageUrl(bannerInputUrl.trim() || profileUser.bannerUrl)}
                     alt="Cover preview"
                     className="w-full h-full object-cover"
                     onError={(e) => {
