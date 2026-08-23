@@ -202,35 +202,57 @@ const ProfilePage: React.FC = () => {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    if (file.size > 10 * 1024 * 1024) {
-      addToast('error', 'File Too Large', 'Please select an image smaller than 10MB.');
+    if (file.size > 15 * 1024 * 1024) {
+      addToast('error', 'File Too Large', 'Please select an image smaller than 15MB.');
       return;
     }
 
     setIsUploadingBanner(true);
 
     const reader = new FileReader();
-    reader.onload = async (event) => {
-      const dataUrl = event.target?.result as string;
-      setBannerInputUrl(dataUrl);
+    reader.onload = (event) => {
+      const rawDataUrl = event.target?.result as string;
 
-      try {
-        // Save base64 dataUrl directly to user profile in database
-        const res = await api.put('/users/profile', { bannerUrl: dataUrl });
-        const finalUrl = res.data?.user?.bannerUrl || dataUrl;
+      // Optimize & resize image using Canvas for instant cloud storage
+      const img = new Image();
+      img.onload = async () => {
+        const canvas = document.createElement('canvas');
+        const MAX_WIDTH = 1600;
+        const scale = Math.min(1, MAX_WIDTH / img.width);
+        canvas.width = Math.round(img.width * scale);
+        canvas.height = Math.round(img.height * scale);
 
-        setProfileUser((prev: any) => ({ ...prev, bannerUrl: finalUrl }));
-        if (currentUser && currentUser.id === profileUser.id && updateUser) {
-          updateUser({ bannerUrl: finalUrl });
+        const ctx = canvas.getContext('2d');
+        if (ctx) {
+          ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+          const optimizedDataUrl = canvas.toDataURL('image/jpeg', 0.85);
+          setBannerInputUrl(optimizedDataUrl);
+
+          try {
+            const res = await api.put('/users/profile', { bannerUrl: optimizedDataUrl });
+            const finalUrl = res.data?.user?.bannerUrl || optimizedDataUrl;
+
+            setProfileUser((prev: any) => ({ ...prev, bannerUrl: finalUrl }));
+            if (currentUser && currentUser.id === profileUser.id && updateUser) {
+              updateUser({ bannerUrl: finalUrl });
+            }
+
+            addToast('success', 'Cover Photo Live', 'Your profile cover photo is now live!');
+            setShowCoverModal(false);
+          } catch (err: any) {
+            addToast('error', 'Upload Failed', err.response?.data?.error || 'Could not save cover image.');
+          } finally {
+            setIsUploadingBanner(false);
+          }
         }
+      };
 
-        addToast('success', 'Cover Photo Live', 'Your profile cover background has been updated!');
-        setShowCoverModal(false);
-      } catch (err: any) {
-        addToast('error', 'Upload Failed', err.response?.data?.error || 'Could not upload cover image.');
-      } finally {
+      img.onerror = () => {
+        addToast('error', 'Invalid Image', 'Could not process the selected image.');
         setIsUploadingBanner(false);
-      }
+      };
+
+      img.src = rawDataUrl;
     };
 
     reader.onerror = () => {
@@ -297,22 +319,26 @@ const ProfilePage: React.FC = () => {
         
         {/* Banner Cover */}
         <div className="h-48 sm:h-64 relative overflow-hidden bg-slate-900 border-b border-gray-200/10 group">
-          {profileUser.bannerUrl ? (
+          {/* Default High-Tech Gradient & Grid Pattern (Always active base) */}
+          <div className="absolute inset-0 bg-gradient-to-r from-teal-900 via-indigo-950 to-purple-950">
+            <div className="absolute inset-0 bg-[radial-gradient(#14b8a6_1px,transparent_1px)] [background-size:16px_16px] opacity-20 pointer-events-none" />
+            <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top_right,_var(--tw-gradient-stops))] from-teal-500/20 via-transparent to-transparent pointer-events-none" />
+          </div>
+
+          {/* Custom User Banner Image */}
+          {profileUser.bannerUrl && (
             <img
               src={formatImageUrl(profileUser.bannerUrl)}
-              alt={`${profileUser.name}'s cover`}
-              className="w-full h-full object-cover object-center transition-all duration-700 group-hover:scale-105"
+              alt=""
+              className="absolute inset-0 w-full h-full object-cover object-center transition-all duration-700 group-hover:scale-105"
+              onError={(e) => {
+                (e.target as HTMLElement).style.display = 'none';
+              }}
             />
-          ) : (
-            // Default High-Tech Gradient & Grid Pattern
-            <div className="w-full h-full bg-gradient-to-r from-teal-900 via-indigo-950 to-purple-950 relative">
-              <div className="absolute inset-0 bg-[radial-gradient(#14b8a6_1px,transparent_1px)] [background-size:16px_16px] opacity-20 pointer-events-none" />
-              <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top_right,_var(--tw-gradient-stops))] from-teal-500/20 via-transparent to-transparent pointer-events-none" />
-            </div>
           )}
 
           {/* Vignette Overlay for Readability */}
-          <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/20 to-black/40 pointer-events-none" />
+          <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/20 to-black/40 pointer-events-none z-10" />
 
           {/* Top-Right Action Controls */}
           <div className="absolute top-4 right-4 flex items-center gap-2 z-20">
