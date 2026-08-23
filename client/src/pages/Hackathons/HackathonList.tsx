@@ -52,7 +52,7 @@ const HackathonList: React.FC = () => {
   const [difficulty, setDifficulty] = useState('All');
   const [department, setDepartment] = useState('All');
   const [duration, setDuration] = useState('All');
-  const [dateStatus, setDateStatus] = useState('upcoming'); // upcoming, past, all
+  const [dateStatus, setDateStatus] = useState('all'); // upcoming, past, all
   const [sortBy, setSortBy] = useState('date');
   const [page, setPage] = useState(1);
   const [showMobileFilters, setShowMobileFilters] = useState(false);
@@ -131,7 +131,7 @@ const HackathonList: React.FC = () => {
     setDifficulty('All');
     setDepartment('All');
     setDuration('All');
-    setDateStatus('upcoming');
+    setDateStatus('all');
     setSortBy('date');
     setPage(1);
   };

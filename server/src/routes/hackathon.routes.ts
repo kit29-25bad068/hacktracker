@@ -88,54 +88,68 @@ router.get('/', optionalAuth, async (req: AuthRequest, res: Response): Promise<v
     const limitNum = Math.min(50, Math.max(1, parseInt(limit as string) || 12));
     const skip = (pageNum - 1) * limitNum;
 
-    const where: any = {};
+    const andClauses: any[] = [];
 
     if (search && typeof search === 'string' && search.trim() !== '') {
       const q = search.trim();
-      where.OR = [
-        { title: { contains: q } },
-        { description: { contains: q } },
-        { theme: { contains: q } },
-        { platform: { contains: q } },
-      ];
+      andClauses.push({
+        OR: [
+          { title: { contains: q } },
+          { description: { contains: q } },
+          { theme: { contains: q } },
+          { platform: { contains: q } },
+        ],
+      });
     }
 
     if (platform && typeof platform === 'string' && platform !== 'All') {
-      where.platform = platform;
+      andClauses.push({ platform });
     }
 
     if (locationType && typeof locationType === 'string' && locationType !== 'All') {
-      where.locationType = locationType;
+      andClauses.push({ locationType });
     }
 
     if (theme && typeof theme === 'string' && theme !== 'All') {
-      where.theme = theme;
+      andClauses.push({ theme });
     }
 
     if (difficulty && typeof difficulty === 'string' && difficulty !== 'All') {
-      where.difficulty = difficulty;
+      andClauses.push({ difficulty });
     }
 
     if (department && typeof department === 'string' && department !== 'All') {
-      where.department = department;
+      andClauses.push({ department });
     }
 
     if (duration && typeof duration === 'string' && duration !== 'All') {
-      where.duration = duration;
+      andClauses.push({ duration });
     }
 
     const now = new Date();
     if (dateStatus === 'upcoming') {
-      where.endDate = { gte: now };
+      andClauses.push({
+        OR: [
+          { endDate: { gte: now } },
+          { endDate: null },
+          { startDate: { gte: now } },
+          { startDate: null },
+        ],
+      });
     } else if (dateStatus === 'past') {
-      where.endDate = { lt: now };
+      andClauses.push({
+        endDate: { lt: now },
+      });
     }
 
     if (minPrize || maxPrize) {
-      where.prizePoolValue = {};
-      if (minPrize) where.prizePoolValue.gte = parseInt(minPrize as string);
-      if (maxPrize) where.prizePoolValue.lte = parseInt(maxPrize as string);
+      const prizeClause: any = {};
+      if (minPrize) prizeClause.gte = parseInt(minPrize as string);
+      if (maxPrize) prizeClause.lte = parseInt(maxPrize as string);
+      andClauses.push({ prizePoolValue: prizeClause });
     }
+
+    const where = andClauses.length > 0 ? { AND: andClauses } : {};
 
     let orderBy: any = { startDate: 'asc' };
     if (sortBy === 'prize') {
