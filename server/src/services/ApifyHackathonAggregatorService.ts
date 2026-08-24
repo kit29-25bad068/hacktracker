@@ -268,7 +268,12 @@ export class ApifyHackathonAggregatorService {
           continue;
         }
 
-        const { startDate, endDate, registrationDeadline } = this.parseDateRange(item.dates, item.start_date, item.end_date);
+        const { startDate, endDate, registrationDeadline, submissionDeadline } = this.parseDateRange(
+          item.dates,
+          item.start_date,
+          item.end_date,
+          item.daysLeft
+        );
         const locationStr = item.location || '';
         const isOnline = item.isOnline !== undefined ? item.isOnline : locationStr.toLowerCase().includes('online');
         const locationType = isOnline ? 'Online' : locationStr.toLowerCase().includes('hybrid') ? 'Hybrid' : 'Offline';
@@ -315,6 +320,7 @@ export class ApifyHackathonAggregatorService {
               startDate,
               endDate,
               registrationDeadline,
+              submissionDeadline,
               prizePool,
               prizePoolValue,
               locationType,
@@ -341,7 +347,7 @@ export class ApifyHackathonAggregatorService {
               startDate,
               endDate,
               registrationDeadline,
-              submissionDeadline: endDate,
+              submissionDeadline,
               prizePool,
               prizePoolValue,
               prizeBreakdown: JSON.stringify([
@@ -419,49 +425,146 @@ export class ApifyHackathonAggregatorService {
     return 'Devpost';
   }
 
-  private static parseDateRange(dateStr?: string, explicitStart?: string, explicitEnd?: string): {
-    startDate: Date;
-    endDate: Date;
-    registrationDeadline: Date;
-  } {
-    const now = new Date();
+  private static parseSingleDate(str: string): Date | null {
+    if (!str || !str.trim()) return null;
+    let s = str.trim();
 
-    if (explicitStart && !isNaN(Date.parse(explicitStart))) {
-      const startDate = new Date(explicitStart);
-      const endDate = explicitEnd && !isNaN(Date.parse(explicitEnd)) ? new Date(explicitEnd) : new Date(startDate.getTime() + 2 * 86400000);
-      const regDeadline = new Date(startDate.getTime() - 86400000);
-      return { startDate, endDate, registrationDeadline: regDeadline };
+    // Remove timezone suffixes (IST, UTC, GMT, EST, PST, etc.)
+    s = s.replace(/\b(IST|UTC|GMT|EST|PST|EDT|PDT|BST|CET)\b/gi, '').trim();
+
+    // Fix patterns like "19 Aug 26" or "19 Aug 26, 02:01 AM" -> convert "26" to "2026"
+    s = s.replace(/(\b\d{1,2}\s+[A-Za-z]{3,9}\s+)(2[0-9])\b/gi, '$120$2');
+    s = s.replace(/(\b[A-Za-z]{3,9}\s+\d{1,2},?\s+)(2[0-9])\b/gi, '$120$2');
+
+    // Remove trailing commas and extra spaces
+    s = s.replace(/,\s*$/, '').trim();
+
+    const parsed = Date.parse(s);
+    if (!isNaN(parsed)) {
+      return new Date(parsed);
     }
 
-    if (dateStr) {
-      try {
-        const parts = dateStr.split('-');
-        if (parts.length === 2) {
-          const yearMatch = dateStr.match(/\d{4}/);
-          const year = yearMatch ? yearMatch[0] : String(now.getFullYear());
-          const startCandidate = parts[0].trim() + ' ' + year;
-          const endCandidate = parts[1].trim();
+    const months: Record<string, number> = {
+      jan: 0, feb: 1, mar: 2, apr: 3, may: 4, jun: 5,
+      jul: 6, aug: 7, sep: 8, oct: 9, nov: 10, dec: 11
+    };
 
-          const parsedStart = new Date(startCandidate);
-          const parsedEnd = new Date(endCandidate.includes(year) ? endCandidate : endCandidate + ' ' + year);
-
-          if (!isNaN(parsedStart.getTime()) && !isNaN(parsedEnd.getTime())) {
-            return {
-              startDate: parsedStart,
-              endDate: parsedEnd,
-              registrationDeadline: new Date(parsedStart.getTime() - 86400000)
-            };
-          }
-        }
-      } catch {
-        // Fall through to defaults
+    // e.g. "19 Aug 2026" or "19 Aug"
+    const dmyMatch = s.match(/(\d{1,2})(?:st|nd|rd|th)?\s+([A-Za-z]{3,9})(?:\s+(\d{2,4}))?/i);
+    if (dmyMatch) {
+      const day = parseInt(dmyMatch[1], 10);
+      const mStr = dmyMatch[2].slice(0, 3).toLowerCase();
+      let year = dmyMatch[3] ? parseInt(dmyMatch[3], 10) : new Date().getFullYear();
+      if (year < 100) year += 2000;
+      if (months[mStr] !== undefined) {
+        return new Date(Date.UTC(year, months[mStr], day));
       }
     }
 
-    const startDate = new Date(now.getTime() + 7 * 86400000);
-    const endDate = new Date(startDate.getTime() + 2 * 86400000);
-    const registrationDeadline = new Date(startDate.getTime() - 86400000);
-    return { startDate, endDate, registrationDeadline };
+    // e.g. "Aug 19, 2026" or "Aug 19"
+    const mdyMatch = s.match(/([A-Za-z]{3,9})\s+(\d{1,2})(?:st|nd|rd|th)?(?:,?\s+(\d{2,4}))?/i);
+    if (mdyMatch) {
+      const mStr = mdyMatch[1].slice(0, 3).toLowerCase();
+      const day = parseInt(mdyMatch[2], 10);
+      let year = mdyMatch[3] ? parseInt(mdyMatch[3], 10) : new Date().getFullYear();
+      if (year < 100) year += 2000;
+      if (months[mStr] !== undefined) {
+        return new Date(Date.UTC(year, months[mStr], day));
+      }
+    }
+
+    return null;
+  }
+
+  private static parseDateRange(
+    dateStr?: string,
+    explicitStart?: string,
+    explicitEnd?: string,
+    daysLeftStr?: string
+  ): {
+    startDate: Date;
+    endDate: Date;
+    registrationDeadline: Date;
+    submissionDeadline: Date;
+  } {
+    const now = new Date();
+
+    let startDate: Date | null = null;
+    let endDate: Date | null = null;
+
+    if (explicitStart) {
+      startDate = this.parseSingleDate(explicitStart);
+    }
+    if (explicitEnd) {
+      endDate = this.parseSingleDate(explicitEnd);
+    }
+
+    if ((!startDate || !endDate) && dateStr) {
+      const cleanStr = dateStr.trim();
+
+      // Support multi-character arrow '->', en-dash '–', em-dash '—', tilde '~', 'to', ' - '
+      const separatorRegex = /\s*(?:->|–|—|~|\bto\b|\s-\s)\s*/i;
+      const parts = cleanStr.split(separatorRegex);
+
+      if (parts.length >= 2) {
+        const rawStart = parts[0].trim();
+        const rawEnd = parts[1].trim();
+
+        const yearMatch = cleanStr.match(/\b(202[4-9]|2[4-9])\b/);
+        const year = yearMatch ? (yearMatch[0].length === 2 ? '20' + yearMatch[0] : yearMatch[0]) : String(now.getFullYear());
+
+        const startWithYear = rawStart.match(/\d{4}/) ? rawStart : `${rawStart} ${year}`;
+        const endWithYear = rawEnd.match(/\d{4}/) ? rawEnd : `${rawEnd} ${year}`;
+
+        if (!startDate) startDate = this.parseSingleDate(startWithYear) || this.parseSingleDate(rawStart);
+        if (!endDate) endDate = this.parseSingleDate(endWithYear) || this.parseSingleDate(rawEnd);
+      } else if (parts.length === 1) {
+        const singleParsed = this.parseSingleDate(parts[0]);
+        if (singleParsed) {
+          if (!endDate) endDate = singleParsed;
+        }
+      }
+    }
+
+    // Relative days check (e.g. "7 Days Left", "3 days left")
+    if (!endDate && daysLeftStr) {
+      const match = daysLeftStr.match(/(\d+)\s*day/i);
+      if (match) {
+        const days = parseInt(match[1], 10);
+        endDate = new Date(now.getTime() + days * 86400000);
+      }
+    }
+
+    if (!endDate && dateStr) {
+      const match = dateStr.match(/(\d+)\s*day/i);
+      if (match) {
+        const days = parseInt(match[1], 10);
+        endDate = new Date(now.getTime() + days * 86400000);
+      }
+    }
+
+    if (!startDate && endDate) {
+      startDate = new Date(Math.min(now.getTime(), endDate.getTime() - 7 * 86400000));
+    } else if (startDate && !endDate) {
+      endDate = new Date(startDate.getTime() + 14 * 86400000);
+    } else if (!startDate && !endDate) {
+      startDate = new Date(now.getTime() - 2 * 86400000);
+      endDate = new Date(now.getTime() + 14 * 86400000);
+    }
+
+    const finalStart = startDate!;
+    const finalEnd = endDate!;
+
+    // Submission deadline is the official final closing date (endDate)
+    const submissionDeadline = finalEnd;
+    const registrationDeadline = finalEnd;
+
+    return {
+      startDate: finalStart,
+      endDate: finalEnd,
+      registrationDeadline,
+      submissionDeadline
+    };
   }
 
   private static parsePrize(prizeStr: string): { prizePool: string; prizePoolValue: number } {

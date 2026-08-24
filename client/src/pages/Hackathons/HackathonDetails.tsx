@@ -231,15 +231,23 @@ const HackathonDetails: React.FC = () => {
 
               <div className="p-4 rounded-2xl bg-gray-50 dark:bg-[#131B2A] border border-gray-200 dark:border-gray-800 space-y-1">
                 <span className="text-gray-400 font-bold uppercase">Event Start</span>
-                <div className="text-sm font-semibold text-gray-900 dark:text-white">
-                  {new Date(hackathon.startDate).toLocaleDateString()}
+                <div className="text-sm font-semibold text-gray-900 dark:text-white font-mono">
+                  {hackathon.startDate ? new Date(hackathon.startDate).toLocaleDateString('en-US', {
+                    month: 'short',
+                    day: 'numeric',
+                    year: 'numeric',
+                  }) : 'TBA'}
                 </div>
               </div>
 
               <div className="p-4 rounded-2xl bg-gray-50 dark:bg-[#131B2A] border border-gray-200 dark:border-gray-800 space-y-1">
                 <span className="text-gray-400 font-bold uppercase">Event Finish</span>
-                <div className="text-sm font-semibold text-gray-900 dark:text-white">
-                  {new Date(hackathon.endDate).toLocaleDateString()}
+                <div className="text-sm font-semibold text-gray-900 dark:text-white font-mono">
+                  {hackathon.endDate ? new Date(hackathon.endDate).toLocaleDateString('en-US', {
+                    month: 'short',
+                    day: 'numeric',
+                    year: 'numeric',
+                  }) : 'TBA'}
                 </div>
               </div>
             </div>
