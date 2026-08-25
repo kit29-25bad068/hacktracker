@@ -267,7 +267,7 @@ export class ApifyHackathonAggregatorService {
         const sourcePlatform = this.normalizePlatform(item.source || this.inferPlatformFromUrl(rawUrl));
 
         // Skip if not one of our 5 supported platforms
-        if (!['Devpost', 'MLH', 'DoraHacks', 'Devfolio', 'Unstop'].includes(sourcePlatform)) {
+        if (!['Devpost', 'MLH', 'DoraHacks', 'Devfolio'].includes(sourcePlatform)) {
           continue;
         }
 
@@ -402,7 +402,7 @@ export class ApifyHackathonAggregatorService {
       console.log('🌐 Fetching live official hackathons directly from Unstop API...');
       let totalSynced = 0;
 
-      for (let page = 1; page <= 3; page++) {
+      for (let page = 1; page <= 5; page++) {
         const unstopUrl = `https://unstop.com/api/public/opportunity/search-result?opportunity=hackathons&per_page=50&page=${page}`;
         const res = await fetch(unstopUrl, {
           headers: {
