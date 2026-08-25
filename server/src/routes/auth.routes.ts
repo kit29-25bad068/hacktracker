@@ -564,11 +564,18 @@ router.post('/forgot-password', async (req, res): Promise<void> => {
         htmlContent: `
           <p>Hi ${user.name},</p>
           <p>We received a request to reset your HackTracker account password.</p>
-          <p>For this local workspace, your demo credentials remain active. You can log in using password: <strong>password123</strong> or update it in Settings &gt; Security.</p>
-          <a href="http://localhost:5173/login" style="display:inline-block; background:#14b8a6; color:#000; font-weight:bold; padding:10px 20px; border-radius:6px; text-decoration:none;">Log In to HackTracker</a>
+          <p>For this workspace, you can reset your password directly on the website at /forgot-password.</p>
         `,
       });
     }
+
+    res.json({
+      message: 'If an account with that email exists, password reset instructions have been dispatched to your registered address.',
+    });
+  } catch (err: any) {
+    res.status(500).json({ error: 'Failed to process password reset.' });
+  }
+});
 
 // 10. RESET PASSWORD DIRECTLY
 router.post('/reset-password', async (req, res): Promise<void> => {
