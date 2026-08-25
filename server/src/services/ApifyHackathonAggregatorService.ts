@@ -462,9 +462,10 @@ export class ApifyHackathonAggregatorService {
               OR: [
                 { registrationUrl: canonicalUrl },
                 { websiteUrl: canonicalUrl },
+                { registrationUrl: { contains: String(item.id || '') } },
                 {
                   AND: [
-                    { title: { equals: title } },
+                    { title: { contains: title.slice(0, 25) } },
                     { platform: 'Unstop' }
                   ]
                 }
