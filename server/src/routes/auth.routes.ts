@@ -570,11 +570,60 @@ router.post('/forgot-password', async (req, res): Promise<void> => {
       });
     }
 
+// 10. RESET PASSWORD DIRECTLY
+router.post('/reset-password', async (req, res): Promise<void> => {
+  try {
+    const { email, newPassword } = req.body;
+    if (!email || !newPassword) {
+      res.status(400).json({ error: 'Email and new password are required.' });
+      return;
+    }
+    if (newPassword.length < 6) {
+      res.status(400).json({ error: 'Password must be at least 6 characters.' });
+      return;
+    }
+
+    const user = await prisma.user.findUnique({
+      where: { email: email.trim().toLowerCase() },
+    });
+
+    if (!user) {
+      res.status(404).json({ error: 'No account found with this email address.' });
+      return;
+    }
+
+    const passwordHash = await bcrypt.hash(newPassword, 10);
+    await prisma.user.update({
+      where: { id: user.id },
+      data: { passwordHash },
+    });
+
+    await prisma.securityEvent.create({
+      data: {
+        userId: user.id,
+        type: 'PASSWORD_RESET',
+        description: 'Account password was reset successfully.',
+        ipAddress: req.ip,
+      },
+    });
+
+    // Optional notification email if SMTP configured
+    await EmailService.sendEmail({
+      userId: user.id,
+      templateType: 'PASSWORD_CHANGED',
+      subject: '🔒 Your HackTracker Password Was Changed',
+      htmlContent: `
+        <p>Hi ${user.name},</p>
+        <p>Your HackTracker account password was just updated successfully.</p>
+        <p>If you made this change, you can safely disregard this email.</p>
+      `,
+    });
+
     res.json({
-      message: 'If an account with that email exists, password reset instructions have been dispatched to your registered address.',
+      message: 'Password reset successfully! You can now log in with your new password.',
     });
   } catch (err: any) {
-    res.status(500).json({ error: 'Failed to process password reset.' });
+    res.status(500).json({ error: 'Failed to reset password: ' + err.message });
   }
 });
 
